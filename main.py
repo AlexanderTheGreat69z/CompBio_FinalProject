@@ -1,5 +1,6 @@
 import random, heapq, pygame, sys
 from genetic_algorithm import GenAlgo
+from dataset_reader import get_random_motif, grm_alt
 from settings import *
 from ui_objects import *
 from colors import *
@@ -44,7 +45,7 @@ class Timer:
                 self.running = False
 
 class GeneDisplay:
-    def __init__(self, surface:pygame.Surface, gene:list | str):
+    def __init__(self, surface:pygame.Surface, gene:list | str, fit:float):
         self.surface = surface
         
         self.max_gene_length = 24
@@ -53,7 +54,7 @@ class GeneDisplay:
         
         self.text_size = GENE_DISPLAY_TEXT_SIZE
         
-        self.width = len(self.gene)/1.2 * GENE_DISPLAY_TEXT_SIZE
+        self.width = 325
         self.height = self.text_size * 2
         self.rect = pygame.Rect(0, 0, self.width, self.height)
 
@@ -62,6 +63,7 @@ class GeneDisplay:
         self.text_col = (0,0,0)
         
         self.text = Text(self.surface, self.gene, self.text_size, self.text_col)
+        self.fit_display = Text(self.surface, f"{fit}%", self.text_size, WHITE)
         
     def __darken_color(self, rgb:tuple, factor:float):
         r, g, b = rgb
@@ -83,8 +85,16 @@ class GeneDisplay:
     def draw(self):
         pygame.draw.rect(self.surface, self.bg_col, self.rect)
         pygame.draw.rect(self.surface, self.border_col, self.rect, 5)
-        self.text.rect.center = self.rect.center
+        
+        self.text.rect.centery = self.rect.centery
+        self.text.rect.left = self.rect.left
+        self.text.rect.x += 10
         self.text.draw()
+        
+        self.fit_display.rect.centery = self.rect.centery
+        self.fit_display.rect.right = self.rect.right
+        self.fit_display.rect.x -= 10
+        self.fit_display.draw()
         
 class main:
     def __init__(self):
@@ -92,13 +102,17 @@ class main:
         # Window Settings
         self.surface    = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         self.caption    = pygame.display.set_caption(WINDOW_TITLE)
-        self.rect       = self.surface.get_rect()
+        self.icon       = pygame.display.set_icon( pygame.image.load(WINDOW_ICON) )
+        
+        self.surf_rect  = self.surface.get_rect()
         self.clock      = pygame.time.Clock()
         self.FPS        = 60
         
         # Gene and Target Calibration
         self.genes = 'ACTG'
-        self.target = [random.choice(self.genes) for _ in range(TARGET_GENE_LENGTH)]
+        # self.target = list( get_random_motif('new', TARGET_GENE_LENGTH) )
+        self.target = list( grm_alt('ecoli_new.fna', TARGET_GENE_LENGTH) )
+        
         self.__calibrate()
         
         # Algorithm parameters
@@ -129,7 +143,7 @@ class main:
         self.interface = pygame.Rect(0,0,WINDOW_WIDTH,WINDOW_HEIGHT/4)
         self.numbers_interface_section = pygame.Rect(0,0, self.interface.width / 3, self.interface.height)
         
-        self.interface.bottom = self.rect.bottom
+        self.interface.bottom = self.surf_rect.bottom
         
         self.numint_width = 120
         self.numint_height = 180
@@ -196,37 +210,25 @@ class main:
         
         # Target Individual Interface
         self.target_gene_interface = {
-            "disp"  : GeneDisplay(self.surface, self.target),
+            "disp"  : GeneDisplay(self.surface, self.target, 100),
             "label" : Text(self.surface, "Target Individual:", 20),
             "button": Button(self.surface, 300, 40, "Change Target", CYAN, WHITE)
         }
         
-        # Target Gene Related Interface
-        self.target_display = GeneDisplay(self.surface, self.target)
-        self.target_display.setBorderColor(DARK_GREEN)
-        self.target_display.setTextColor(WHITE)
-        self.target_display.rect.center = self.interface.center
-        
-        self.target_display_label = Text(self.surface, "Target Individual:", 20)
-        self.target_display_label.rect.center = self.interface.center
-        self.target_display_label.rect.y -= 40
-        
-        self.change_target_btn = Button(self.surface, 300, 40, "Change Target", CYAN, WHITE)
-        self.change_target_btn.rect.center = self.interface.center
-        self.change_target_btn.rect.y += 50
-        
         # Run button
         self.run_btn = Button(self.surface, 300, 100, 'RUN', GREEN, WHITE)
         
-        # # Next Button
-        # self.next_btn = Button(self.surface, 300, 50, 'Next Step', WHITE, BLACK)
-        # self.next_btn.rect.top = self.run_btn.rect.bottom
-        # self.next_btn.rect.centerx = self.run_btn.rect.centerx
+        print(f"Target: {self.target}")
         
     # Convert target gene code into list and checks if target contains unknown gene
     def __calibrate(self):
         if isinstance(self.target, str): self.target = [s for s in self.target]
         if any(s not in self.genes for s in self.target): raise ValueError("Target contains unknown genes")
+        
+    # Clear all the gene displays in each section
+    def __clear_display_data(self):
+        for k in self.displays.keys():
+            self.displays[k]["data"].clear()
         
     # Updates algorithm parameters at value change
     def __update_parameters(self):
@@ -249,14 +251,17 @@ class main:
             
     # Change target individual on button click
     def __change_target_individual(self):
-        if not self.running and self.change_target_btn.is_clicked():
-            self.target = [random.choice(self.genes) for _ in range(TARGET_GENE_LENGTH)]
+        button:Button  = self.target_gene_interface["button"]
+        if not self.running and button.is_clicked():
+            # self.target = list( get_random_motif('new', TARGET_GENE_LENGTH) )
+            self.target = list( grm_alt('ecoli_new.fna', TARGET_GENE_LENGTH) )
+            print(self.target)
             self.algorithm = GenAlgo(self.genes, self.target)
             
-            self.target_display = GeneDisplay(self.surface, self.target)
-            self.target_display.setBorderColor((0, 200, 0))
-            self.target_display.setTextColor((255,255,255))
-            self.target_display.rect.center = self.interface.center
+            self.target_gene_interface["disp"] = GeneDisplay(self.surface, self.target, 100)
+            self.target_gene_interface["disp"].setBorderColor(GREEN)
+            self.target_gene_interface["disp"].setTextColor(WHITE)
+            self.target_gene_interface["disp"].rect.center = self.interface.center
             
     # Catch the elites of the current generation and sends it to the next generation
     def __send_elites(self):
@@ -268,7 +273,7 @@ class main:
                     self.known_elites.add(tuple(individual))
                 else: continue
             else: break
-            
+        
     # Selects a parent via tournament selection
     def __tournament_selection(self):
         candidates = []
@@ -291,7 +296,10 @@ class main:
         
         section_rect = self.displays[section]['rect']
         
-        display = GeneDisplay(self.surface, gene)
+        decimal = (len(self.target) - self.algorithm.fitness(gene)) / len(self.target)
+        fitness = round(decimal * 100, 2)
+        
+        display = GeneDisplay(self.surface, gene, fitness)
         display.setBorderColor(col)
         display.setTextColor(WHITE)
         margin = (section_rect.height - n * display.rect.height) / (n+1)
@@ -419,7 +427,7 @@ class main:
             if k in ['curr-gen', 'next-gen'] : section.height = self.display_section_height
             else: section.height = self.display_section_height / 2
             
-            section.left = self.rect.left
+            section.left = self.surf_rect.left
             section.x += margin(i)
             section.y = 70
             
@@ -484,14 +492,14 @@ class main:
     # Draws the indicator of current generation
     def __draw_gen_indicator(self):
         gen_indicator = Text(self.surface, f"Gen {self.gen}", 100)
-        gen_indicator.rect.center = self.rect.center
+        gen_indicator.rect.center = self.surf_rect.center
         
         if self.runs > 0:
             gen_indicator.draw()
-            self.__draw_gene_found_text()
+            self.__draw_target_found_text()
         
     # Draws the text indicating the target has been found
-    def __draw_gene_found_text(self):
+    def __draw_target_found_text(self):
         text = ''
         col = None
         if not self.running:
@@ -499,24 +507,41 @@ class main:
                 text = f"Target found in {self.gen} generations"
                 col = GREEN
             else:
-                text = f"Target not found after {self.max_gen} generations"
+                text = f"Target not found"
                 col = RED
                 
             display = Text(self.surface, text, 50, col)
-            display.rect.center = self.rect.center
+            display.rect.center = self.surf_rect.center
             display.rect.y += 100
             display.draw()
+        
+    # Draws the target gene UI
+    def __draw_target_gene_interface(self):
+        display:GeneDisplay = self.target_gene_interface["disp"]
+        display.setBorderColor(DARK_GREEN)
+        display.setTextColor(WHITE)
+        display.rect.center = self.interface.center
+        
+        label:Text   = self.target_gene_interface["label"]
+        label.rect.centerx = display.rect.centerx
+        label.rect.bottom = display.rect.top
+        label.rect.y -= 10
+        
+        button:Button  = self.target_gene_interface["button"]
+        button.rect.centerx = display.rect.centerx
+        button.rect.top = display.rect.bottom
+        button.rect.y += 10
+        
+        display.draw()
+        label.draw()
+        button.draw()
         
     # Draws the user interface at the bottom of window
     def __draw_interface(self):
         
         pygame.draw.rect(self.surface, INTERFACE_BG_COL, self.interface)
         self.__draw_number_interfaces()
-        
-        self.target_display_label.draw()
-        self.target_display.draw()
-        self.change_target_btn.draw()
-        
+        self.__draw_target_gene_interface()
         self.__draw_run_button()
         
         # self.next_btn.draw()
@@ -635,9 +660,6 @@ class main:
         self.__draw_connections()
         self.__draw_gen_indicator()
         
-        # pygame.draw.rect(self.surface, BLACK, self.numbers_interface_section, 5)
-        
-        # print(f"Running: {self.running} | Generation: {self.gen}")
         if self.running: self.steps_delay.update()
         
     # Execute program

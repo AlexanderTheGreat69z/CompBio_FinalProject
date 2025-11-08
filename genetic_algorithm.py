@@ -1,10 +1,11 @@
 import random, heapq
+from dataset_reader import get_random_motif, grm_alt
 
 class GenAlgo:
     def __init__(self, genes:list, target:list):
         self.genes = genes
         self.target = target
-
+        
     # Fitness scoring algorithm (lower is better)
     def fitness(self, individual:list):
         return len(individual) - sum(individual[i] == self.target[i] for i in range(len(individual)))
@@ -13,7 +14,8 @@ class GenAlgo:
     def generate_population(self, size:int):
         population = []
         while len(population) < size:
-            candidate = [random.choice(self.genes) for _ in self.target]
+            # candidate = list(get_random_motif('new', len(self.target)))
+            candidate = list(grm_alt('ecoli_old.fna', len(self.target)))
             if candidate not in population: 
                 ind = (self.fitness(candidate), candidate)
                 heapq.heappush(population, ind)
