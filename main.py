@@ -230,6 +230,11 @@ class main:
         # Run button
         self.run_btn = Button(self.surface, 300, 100, 'RUN', GREEN, WHITE)
         
+        self.dropdown = {
+            "object" : Dropdown(250, 30, self.folders),
+            "label"  : Text(self.surface, "Organism Dataset", 20),
+        }
+        
     # Convert target gene code into list and checks if target contains unknown gene
     def __calibrate(self):
         if isinstance(self.target, str): self.target = [s for s in self.target]
@@ -258,12 +263,33 @@ class main:
             
             interface("mutation-prob").change_val()
             self.mutation_probability = interface("mutation-prob").get_val()
-            
+    
     # Change target individual on button click
     def __change_target_individual(self):
         button:Button  = self.target_gene_interface["button"]
         if not self.running and button.is_clicked():
             # self.target = list( get_random_motif('new', TARGET_GENE_LENGTH) )
+            self.target = list( random.choice(split_to_uniform(self.new_dataset, MOTIF_LENGTH)) )
+            self.algorithm = GenAlgo(self.genes, self.target)
+            
+            self.target_gene_interface["disp"] = GeneDisplay(self.surface, self.target, 100)
+            self.target_gene_interface["disp"].setBorderColor(GREEN)
+            self.target_gene_interface["disp"].setTextColor(WHITE)
+            self.target_gene_interface["disp"].rect.center = self.interface.center
+            
+    # Change used dataser
+    def __change_dataset(self):
+        selected = self.dropdown['object'].get_selected()
+        if self.selected_dataset != selected:
+            
+            # Set selected dataset
+            self.selected_dataset = selected
+            
+            # Load new datasets
+            self.old_dataset = read_dataset(f'data/{self.selected_dataset}/old.fna')
+            self.new_dataset = read_dataset(f'data/{self.selected_dataset}/new.fna')
+            
+            # Update target gene
             self.target = list( random.choice(split_to_uniform(self.new_dataset, MOTIF_LENGTH)) )
             self.algorithm = GenAlgo(self.genes, self.target)
             
@@ -463,7 +489,7 @@ class main:
             
     # Draws every display stored in the sections display data
     def __draw_displays(self):
-        if self.running or self.target_found: 
+        if self.running: 
             for k in self.displays.keys():
                 data = self.displays[k]['data']
                 for ind in data: ind.draw()
@@ -556,6 +582,18 @@ class main:
         label.draw()
         button.draw()
         
+    def __draw_dataset_dropdown(self):
+        dropdown:Dropdown = self.dropdown['object']
+        dropdown.rect.centery = self.interface.centery
+        dropdown.rect.centerx = int(0.75*self.interface.width)
+        dropdown.rect.centerx -= 50
+        dropdown.draw(self.surface)
+        
+        label:Text = self.dropdown['label']
+        label.rect.bottom = dropdown.rect.top
+        label.rect.centerx = dropdown.rect.centerx
+        label.draw()
+        
     # Draws the user interface at the bottom of window
     def __draw_interface(self):
         
@@ -563,6 +601,7 @@ class main:
         self.__draw_number_interfaces()
         self.__draw_target_gene_interface()
         self.__draw_run_button()
+        self.__draw_dataset_dropdown()
         
         # self.next_btn.draw()
         
@@ -661,11 +700,13 @@ class main:
     # Event handler
     def __event(self):
         for e in pygame.event.get():
+            self.dropdown['object'].handle_event(e)
             if e.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
                 
             if e.type == pygame.MOUSEBUTTONDOWN:
+                self.__change_dataset()
                 self.__update_parameters()
                 self.__start_simulation()
                 self.__change_target_individual()

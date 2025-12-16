@@ -124,3 +124,99 @@ def uniform_spacing_margin(container_size:int, object_size:int, object_count:int
         return (container_size - object_count * object_size) / (object_count + 1)
     else:
         raise ValueError("Invalid Spacing Type")
+    
+    
+import pygame
+
+class Dropdown:
+    def __init__(self, w, h, items,
+                 bg_color=(50, 50, 50),
+                 text_color=(255, 255, 255),
+                 hover_color=(70, 70, 70),
+                 border_color=(200, 200, 200)):
+
+        self.rect = pygame.Rect(0, 0, w, h)
+        self.items = items
+        self.font = pygame.font.Font('freesansbold.ttf', 20)
+        self.selected_index = 0
+        self.expanded = False
+
+        self.bg_color = bg_color
+        self.text_color = text_color
+        self.hover_color = hover_color
+        self.border_color = border_color
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mouse_pos = event.pos
+
+            # Click main box
+            if self.rect.collidepoint(mouse_pos):
+                self.expanded = not self.expanded
+                return
+
+            # Click dropdown items
+            if self.expanded:
+                for i, item in enumerate(self.items):
+                    item_rect = pygame.Rect(
+                        self.rect.x,
+                        self.rect.y + self.rect.height * (i + 1),
+                        self.rect.width,
+                        self.rect.height
+                    )
+                    if item_rect.collidepoint(mouse_pos):
+                        self.selected_index = i
+                        self.expanded = False
+                        return
+
+            # Click outside closes dropdown
+            self.expanded = False
+
+    def draw(self, surface):
+        # Main box
+        pygame.draw.rect(surface, self.bg_color, self.rect)
+        pygame.draw.rect(surface, self.border_color, self.rect, 2)
+
+        # Selected text
+        text_surf = self.font.render(
+            self.items[self.selected_index], True, self.text_color
+        )
+        surface.blit(
+            text_surf,
+            (self.rect.x + 5, self.rect.y + (self.rect.height - text_surf.get_height()) // 2)
+        )
+
+        # Dropdown arrow
+        pygame.draw.polygon(
+            surface,
+            self.text_color,
+            [
+                (self.rect.right - 15, self.rect.y + self.rect.height // 3),
+                (self.rect.right - 5, self.rect.y + self.rect.height // 3),
+                (self.rect.right - 10, self.rect.y + 2 * self.rect.height // 3),
+            ]
+        )
+
+        # Dropdown items
+        if self.expanded:
+            for i, item in enumerate(self.items):
+                item_rect = pygame.Rect(
+                    self.rect.x,
+                    self.rect.y + self.rect.height * (i + 1),
+                    self.rect.width,
+                    self.rect.height
+                )
+
+                color = self.hover_color if item_rect.collidepoint(pygame.mouse.get_pos()) else self.bg_color
+                pygame.draw.rect(surface, color, item_rect)
+                pygame.draw.rect(surface, self.border_color, item_rect, 2)
+
+                item_surf = self.font.render(item, True, self.text_color)
+                surface.blit(
+                    item_surf,
+                    (item_rect.x + 5, item_rect.y + (item_rect.height - item_surf.get_height()) // 2)
+                )
+
+    def get_selected(self):
+        """Return the currently selected item"""
+        return self.items[self.selected_index]
