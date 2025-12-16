@@ -1,11 +1,19 @@
-import random, heapq, pygame, sys
-from genetic_algorithm import GenAlgo
-from dataset_reader import get_random_motif, grm_alt
+import random, heapq, pygame, sys, os
+
+from components.genetic_algorithm import GenAlgo
+from components.dataset_reader import read_dataset, split_to_uniform
+from components.ui_objects import *
+
 from settings import *
-from ui_objects import *
 from colors import *
 
 pygame.init()
+
+def getFolderNames(parent_folder_dir):
+    return [
+        name for name in os.listdir(parent_folder_dir)
+        if os.path.isdir(os.path.join(parent_folder_dir, name))
+    ]
 
 class Timer:
     def __init__(self, delay_ms, callback, repeat=False):
@@ -111,8 +119,12 @@ class main:
         # Gene and Target Calibration
         self.genes = 'ACTG'
         # self.target = list( get_random_motif('new', TARGET_GENE_LENGTH) )
-        self.target = list( grm_alt('ecoli_new.fna', TARGET_GENE_LENGTH) )
+        self.folders = getFolderNames('data')
+        self.selected_dataset = DEFAULT_DATASET
+        self.old_dataset = read_dataset(f'data/{self.selected_dataset}/old.fna')
+        self.new_dataset = read_dataset(f'data/{self.selected_dataset}/new.fna')
         
+        self.target = list( random.choice(split_to_uniform(self.new_dataset, MOTIF_LENGTH)) )
         self.__calibrate()
         
         # Algorithm parameters
@@ -218,8 +230,6 @@ class main:
         # Run button
         self.run_btn = Button(self.surface, 300, 100, 'RUN', GREEN, WHITE)
         
-        print(f"Target: {self.target}")
-        
     # Convert target gene code into list and checks if target contains unknown gene
     def __calibrate(self):
         if isinstance(self.target, str): self.target = [s for s in self.target]
@@ -254,8 +264,7 @@ class main:
         button:Button  = self.target_gene_interface["button"]
         if not self.running and button.is_clicked():
             # self.target = list( get_random_motif('new', TARGET_GENE_LENGTH) )
-            self.target = list( grm_alt('ecoli_new.fna', TARGET_GENE_LENGTH) )
-            print(self.target)
+            self.target = list( random.choice(split_to_uniform(self.new_dataset, MOTIF_LENGTH)) )
             self.algorithm = GenAlgo(self.genes, self.target)
             
             self.target_gene_interface["disp"] = GeneDisplay(self.surface, self.target, 100)
@@ -309,6 +318,17 @@ class main:
         display.rect.y += (iteration-1) * display.rect.height + iteration * margin
         
         return display
+    
+    # Generate the first generation (random)
+    def __generate_population(self, size:int):
+        population = []
+        while len(population) < size:
+            # candidate = list(get_random_motif('new', len(self.target)))
+            candidate = list(random.choice(split_to_uniform(self.old_dataset, MOTIF_LENGTH)))
+            if candidate not in population: 
+                ind = (self.algorithm.fitness(candidate), candidate)
+                heapq.heappush(population, ind)
+        return population
     
     # Select the parents uing selection algorithm
     def __generate_parents(self):
@@ -623,7 +643,7 @@ class main:
                 self.steps_delay.start()
                 
                 # Generate initial population (Gen 1)
-                self.current_gen = self.algorithm.generate_population(self.population_size)
+                self.current_gen = self.__generate_population(self.population_size)
                 self.__generate_current_gen_disp()
                 
                 # Check if target found immediately in first gen
